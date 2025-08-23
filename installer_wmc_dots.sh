@@ -2,11 +2,12 @@
 
 # Set repository root
 repo_root=""
-if [ -d "wallpaper_minecraft" ]; then
-  repo_root="./wallpaper_minecraft"
+if [ -d "wmc" ]; then
+  repo_root="./wmc"
 else
   repo_root="."
 fi
+echo "repo root is : $repo_root"
 
 # Define directories
 anvil="$repo_root/temp"
@@ -33,7 +34,7 @@ options_chooser() {
   local options=("$repo_root"/*/)
   local selected_dirs=()
 
-  if [[ "$choice" == "all" ]]; then
+  if [[ "$choice" == "all" || "$choice" == "ALL" ]]; then
     for dir in "${options[@]}"; do
       selected_dirs+=("$dir")
     done
@@ -54,7 +55,6 @@ options_chooser() {
 get_resolutions() {
   local dirs=("$@")
   local resolutions=()
-  local res_map=()
 
   # Collect all resolutions from image files in selected directories
   for dir in "${dirs[@]}"; do
@@ -79,17 +79,17 @@ get_resolutions() {
 
 # Function to copy wallpapers of a specific resolution to temp folder
 copy_to_temp() {
-  local dirs=("$@")
   local resolution="$1"
   shift
+  local dirs=("$@")
 
   # Clear temp folder before copying
-  rm -rf "$anvil"/*
+  rm -rfv "$anvil"/*
   mkdir -p "$anvil"
 
   # Copy files matching the resolution
   for dir in "${dirs[@]}"; do
-    find "$dir" -type f -name "*${resolution}.png" -exec cp {} "$anvil" \;
+    find "$dir" -type f -name "*${resolution}.png" -exec cp -v {} "$anvil" \;
   done
 
   echo "Wallpapers with resolution $resolution copied to $anvil"
@@ -102,32 +102,34 @@ copy_to_install() {
     return 1
   fi
 
-  cp -r "$anvil"/* "$install_folder"/
+  cp -rv "$anvil"/* "$install_folder"/
   echo "Wallpapers copied to $install_folder"
 }
 
 # Function to clear temp folder
 clear_temp() {
-  rm -rf "$anvil"/*
+  rm -rfv "$anvil"/*
   echo "Temp folder cleared."
 }
 
 # Main menu
 menu() {
   while true; do
+    clear
     echo "================================"
     echo "===== Minecraft Wallpapers ====="
     echo "================================"
     echo "1. Temporary install (copy to temp folder)"
     echo "2. Permanent install (copy from temp to wallpapers)"
     echo "3. Clear temp folder"
-    echo "4. Exit"
-    echo ""
-
-    read -p "Choose an option (1-4): " main_choice
+    echo "[x] exit"
+    echo "--------------------------------"
+    
+    read -p "Choose an option (1-3, or x): " main_choice
 
     case "$main_choice" in
       1)
+        clear
         # Temporary install
         echo ""
         echo "Available folders:"
@@ -135,11 +137,19 @@ menu() {
         echo ""
         read -p "Choose folder number or 'all': " folder_choice
 
+        # Validate folder choice
+        if [[ "$folder_choice" != "all" && "$folder_choice" != "ALL" && ! "$folder_choice" =~ ^[0-9]+$ ]]; then
+          clear
+          echo "Invalid choice. Please enter a number or 'all'."
+          continue
+        fi
+
         # Get selected directories
         IFS=' ' read -r -a selected_dirs <<< "$(options_chooser "$folder_choice")"
 
         if [ ${#selected_dirs[@]} -eq 0 ]; then
-          echo "Invalid choice. Please try again."
+          clear
+          echo "Invalid folder number. Please try again."
           continue
         fi
 
@@ -147,6 +157,7 @@ menu() {
         IFS=' ' read -r -a resolutions <<< "$(get_resolutions "${selected_dirs[@]}")"
 
         if [ ${#resolutions[@]} -eq 0 ]; then
+          clear
           echo "No wallpapers found in selected folders."
           continue
         fi
@@ -167,24 +178,28 @@ menu() {
           selected_res="${resolutions[$((res_choice-1))]}"
           copy_to_temp "$selected_res" "${selected_dirs[@]}"
         else
+          clear
           echo "Invalid resolution choice."
         fi
         ;;
       2)
+        clear
         # Permanent install
         copy_to_install
         ;;
       3)
+        clear
         # Clear temp folder
         clear_temp
         ;;
-      4)
-        # Exit
+      x|X)
+        clear
         echo "Exiting..."
         break
         ;;
       *)
-        echo "Invalid option. Please choose 1, 2, 3, or 4."
+        clear
+        echo "Invalid option. Please choose 1, 2, 3, or x."
         ;;
     esac
     echo ""
