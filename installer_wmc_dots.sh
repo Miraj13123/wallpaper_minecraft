@@ -7,7 +7,6 @@ if [ -d "wmc" ]; then
 else
   repo_root="."
 fi
-echo "repo root is : $repo_root"
 
 # Define directories
 anvil="$repo_root/temp"
@@ -34,7 +33,7 @@ options_chooser() {
   local options=("$repo_root"/*/)
   local selected_dirs=()
 
-  if [[ "$choice" == "all" || "$choice" == "ALL" ]]; then
+  if [[ "$choice" == "all" ]]; then
     for dir in "${options[@]}"; do
       selected_dirs+=("$dir")
     done
@@ -55,6 +54,7 @@ options_chooser() {
 get_resolutions() {
   local dirs=("$@")
   local resolutions=()
+  local res_map=()
 
   # Collect all resolutions from image files in selected directories
   for dir in "${dirs[@]}"; do
@@ -87,12 +87,19 @@ copy_to_temp() {
   rm -rfv "$anvil"/*
   mkdir -p "$anvil"
 
-  # Copy files matching the resolution
-  for dir in "${dirs[@]}"; do
-    find "$dir" -type f -name "*${resolution}.png" -exec cp -v {} "$anvil" \;
-  done
-
-  echo "Wallpapers with resolution $resolution copied to $anvil"
+  if [[ "$resolution" == "all" ]]; then
+    # Copy all PNG files if 'all' is selected
+    for dir in "${dirs[@]}"; do
+      find "$dir" -type f -name "*.png" -exec cp {} "$anvil" \;
+    done
+    echo "All wallpapers copied to $anvil"
+  else
+    # Copy files matching the resolution
+    for dir in "${dirs[@]}"; do
+      find "$dir" -type f -name "*${resolution}.png" -exec cp {} "$anvil" \;
+    done
+    echo "Wallpapers with resolution $resolution copied to $anvil"
+  fi
 }
 
 # Function to copy wallpapers from temp to install folder
@@ -112,23 +119,48 @@ clear_temp() {
   echo "Temp folder cleared."
 }
 
+# Function to delete matching files from install folder based on temp
+delete_matching_from_install() {
+  if [ -z "$(ls -A "$anvil")" ]; then
+    echo "Temp folder is empty. Nothing to uninstall."
+    return 1
+  fi
+
+  local found_files=0
+  for file in "$anvil"/*; do
+    if [ -f "$file" ]; then
+      filename=$(basename "$file")
+      dest_file="$install_folder/$filename"
+      if [ -f "$dest_file" ]; then
+        rm -fv "$dest_file"
+        found_files=1
+      fi
+    fi
+  done
+
+  if [ $found_files -eq 0 ]; then
+    echo "No matching wallpapers found in $install_folder."
+  else
+    echo "Matching wallpapers uninstalled successfully."
+  fi
+}
+
 # Main menu
 menu() {
   while true; do
-    clear
     echo "================================"
     echo "===== Minecraft Wallpapers ====="
     echo "================================"
-    echo "1. Temporary install (copy to temp folder)"
-    echo "2. Permanent install (copy from temp to wallpapers)"
-    echo "3. Clear temp folder"
-    echo "[x] exit"
-    echo "--------------------------------"
-    
-    read -p "Choose an option (1-3, or x): " main_choice
+    echo "[1 /      load] Temporary install (copy to temp folder)"
+    echo "[2 /    unload] Clear temp folder"
+    echo "[3 /   install] install Permanently (copy from temp to wallpapers)"
+    echo "[4 / uninstall] Uninstall matching wallpapers (delete from wallpapers matching temp)"
+    echo "[x /      exit] Exit"
+    echo ""
 
-    case "$main_choice" in
-      1)
+    read -p "Choose an option (1-5): " main_choice
+
+    if [[ "$main_choice" == "1" || "$main_choice" == "load" ]];then
         clear
         # Temporary install
         echo ""
@@ -137,19 +169,11 @@ menu() {
         echo ""
         read -p "Choose folder number or 'all': " folder_choice
 
-        # Validate folder choice
-        if [[ "$folder_choice" != "all" && "$folder_choice" != "ALL" && ! "$folder_choice" =~ ^[0-9]+$ ]]; then
-          clear
-          echo "Invalid choice. Please enter a number or 'all'."
-          continue
-        fi
-
         # Get selected directories
         IFS=' ' read -r -a selected_dirs <<< "$(options_chooser "$folder_choice")"
 
         if [ ${#selected_dirs[@]} -eq 0 ]; then
-          clear
-          echo "Invalid folder number. Please try again."
+          echo "Invalid choice. Please try again."
           continue
         fi
 
@@ -157,7 +181,6 @@ menu() {
         IFS=' ' read -r -a resolutions <<< "$(get_resolutions "${selected_dirs[@]}")"
 
         if [ ${#resolutions[@]} -eq 0 ]; then
-          clear
           echo "No wallpapers found in selected folders."
           continue
         fi
@@ -171,38 +194,36 @@ menu() {
           ((num++))
         done
 
-        read -p "Choose resolution number: " res_choice
+        read -p "Choose resolution number or 'all': " res_choice
 
         # Validate resolution choice
-        if [[ "$res_choice" =~ ^[0-9]+$ && "$res_choice" -ge 1 && "$res_choice" -le ${#resolutions[@]} ]]; then
+        if [[ "$res_choice" == "all" ]]; then
+          copy_to_temp "all" "${selected_dirs[@]}"
+        elif [[ "$res_choice" =~ ^[0-9]+$ && "$res_choice" -ge 1 && "$res_choice" -le ${#resolutions[@]} ]]; then
           selected_res="${resolutions[$((res_choice-1))]}"
           copy_to_temp "$selected_res" "${selected_dirs[@]}"
         else
-          clear
           echo "Invalid resolution choice."
         fi
-        ;;
-      2)
-        clear
-        # Permanent install
-        copy_to_install
-        ;;
-      3)
+    elif [[ "$main_choice" == "2" || "$main_choice" == "unload" ]];then
         clear
         # Clear temp folder
         clear_temp
-        ;;
-      x|X)
+    elif [[ "$main_choice" == "3" || "$main_choice" == "install" ]];then
         clear
+        # Permanent install
+        copy_to_install
+    elif [[ "$main_choice" == "4" || "$main_choice" == "uninstall" ]];then
+        clear
+        # Uninstall matching wallpapers
+        delete_matching_from_install
+    elif [[ "$main_choice" == "x" || "$main_choice" == "exit" ]];then
+        # Exit
         echo "Exiting..."
         break
-        ;;
-      *)
-        clear
-        echo "Invalid option. Please choose 1, 2, 3, or x."
-        ;;
-    esac
-    echo ""
+    else
+        echo " X x Invalid Choice !! x X\n ===> plz choose a a number or keyword shown in the menu !"
+    fi
   done
 }
 
